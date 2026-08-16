@@ -35,7 +35,7 @@ window.__ModuleLoader__.load({
         if (polling) return
         polling = true
         store.refresh()
-        setInterval(() => { store.refresh() }, 3000)
+        setInterval(() => { store.refresh() }, 8000)
       },
       async run(route) {
         store.set({ busy: route.indexOf("start") >= 0 ? "start" : "stop", error: "" })
@@ -60,6 +60,24 @@ window.__ModuleLoader__.load({
     }
 
     const usePanel = () => useSyncExternalStore(store.subscribe, store.getSnapshot)
+
+    // ── 主题同步：内嵌应用通过 ?theme= 与 DSH 界面保持一致 ────────────────────
+    function parentTheme() {
+      try {
+        const raw = getComputedStyle(document.documentElement).getPropertyValue("--dsw-alias-bg-panel").trim()
+        const m = raw.match(/[\d.]+/g)
+        if (m && m.length >= 3) {
+          const [r, g, b] = m.slice(0, 3).map(Number)
+          return (r * 299 + g * 587 + b * 114) / 1000 < 140 ? "dark" : "light"
+        }
+      } catch (e) { /* 主题不可探测时由应用回退到系统偏好 */ }
+      return null
+    }
+    function appSrc(base) {
+      const theme = parentTheme()
+      if (!theme) return base
+      return base + (base.indexOf("?") >= 0 ? "&" : "?") + "theme=" + theme
+    }
 
     // ── 样式 ────────────────────────────────────────────────────────────────
     const V = {
@@ -89,7 +107,7 @@ window.__ModuleLoader__.load({
         background: "rgba(220,38,38,0.08)", color: "#b91c1c", whiteSpace: "pre-wrap",
       },
       note: { fontSize: 12, color: V.muted, lineHeight: 1.6 },
-      iframe: { border: "1px solid " + V.border, borderRadius: 10, width: "100%", background: "#fff" },
+      iframe: { border: "1px solid " + V.border, borderRadius: 10, width: "100%", background: "var(--dsw-alias-bg-panel, #f9fafb)", display: "block" },
       link: { color: V.primary, cursor: "pointer", fontSize: 13, background: "none", border: "none", padding: 0, textDecoration: "underline" },
     }
 
@@ -157,7 +175,13 @@ window.__ModuleLoader__.load({
           )),
         error !== "" ? h("div", { style: S.error }, error) : null,
         embed && running
-          ? h("iframe", { key: iframeKey, src: status?.appBase ?? "http://127.0.0.1:4120", style: { ...S.iframe, height: iframeHeight ?? 640 }, title: "Interchange Web 应用" })
+          ? h("iframe", {
+              key: iframeKey,
+              src: appSrc(status?.appBase ?? "http://127.0.0.1:4120"),
+              style: { ...S.iframe, height: iframeHeight ?? 640 },
+              allow: "clipboard-write",
+              title: "Interchange Web 应用",
+            })
           : null,
       )
     }
@@ -232,7 +256,7 @@ window.__ModuleLoader__.load({
             title: "关闭面板",
           }, "×")),
         h("div", { style: { overflow: "auto", padding: "6px 16px 8px" } },
-          h(PanelBody, { iframeHeight: 430 })),
+          h(PanelBody, { iframeHeight: 540 })),
       )
     }
 

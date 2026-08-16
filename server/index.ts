@@ -4,7 +4,6 @@ import express from 'express';
 import multer from 'multer';
 import { config } from './config.js';
 import { migrate } from './db.js';
-import { apiRateLimit } from './rateLimit.js';
 import { router } from './routes.js';
 
 migrate();
@@ -25,12 +24,13 @@ export function mountApi(app: express.Express, mountPath = '/api') {
     }
   });
 
+  // 通用 API 限流已在 routes.ts 内部挂载（/health 除外，供面板状态轮询使用）。
   if (mountPath) {
-    app.use(mountPath, apiRateLimit, router);
+    app.use(mountPath, router);
     return;
   }
 
-  app.use(apiRateLimit, router);
+  app.use(router);
 }
 
 export function errorHandler(

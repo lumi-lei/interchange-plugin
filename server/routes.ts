@@ -7,7 +7,7 @@ import { buildDeliveryRequest } from './delivery.js';
 import { generateDraft, generateRoleSuggestion, recognizeRole } from './ai/modelRouter.js';
 import { assertExternalFileModelAllowed, externalModelKindForSource } from './ai/compliance.js';
 import { parseUploadedFile } from './parser.js';
-import { aiRateLimit, roleRecognitionRateLimit } from './rateLimit.js';
+import { aiRateLimit, apiRateLimit, roleRecognitionRateLimit } from './rateLimit.js';
 import { findRoleProfileByName, roleProfiles } from './roleProfiles.js';
 import { findRoleFocusPresetByName, roleFocusPresets } from './roles.js';
 
@@ -99,6 +99,10 @@ router.get('/health', (_req, res) => {
     model: config.deepseekModel,
   });
 });
+
+// /health 供 DSH 面板与插件桥每数秒轮询一次（状态灯），不计入 API 限流，
+// 避免轮询本身耗尽内嵌 Web 应用的请求额度。其余路由均受 apiRateLimit 保护。
+router.use(apiRateLimit);
 
 router.get('/roles', async (_req, res) => {
   res.json(await repo.roles());
