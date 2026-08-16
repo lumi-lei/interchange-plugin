@@ -1,0 +1,16 @@
+node_modules/
+.venv/
+.venv-markitdown/
+.firecrawl/
+dist/
+dist-server/
+data/
+.env*
+!.env.example
+.DS_Store
+*.log
+sample.converted.md
+sample.pptx
+coverage/
+.vite/
+.vercel

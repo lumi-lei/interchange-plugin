@@ -1,0 +1,4 @@
+interface:
+  display_name: "Interchange Flow"
+  short_description: "Run an OpenSpec-like agree, implement, archive workflow."
+  default_prompt: "Use interchange-flow to create a change package, pause for confirmation, implement after approval, and archive the verified delta."
