@@ -3,17 +3,20 @@
 # Deploys:
 #   1. the interchange-dsh plugin package into every DSH installation found;
 #   2. the user preset (preset/ + skills/core/scripts) under DSH_HOME/.agent-presets;
-#   3. prints the cordis.patch.yml snippet for the host row (append manually).
+#   3. the host row into the profile's cordis.patch.yml (idempotent; prints the
+#      snippet only when no patch file is found).
 #
 # Re-run after a DSH upgrade rebuilds node_modules, or after updating this repo.
 
 param(
-  [string]$WorkspaceDir = 'D:/code/interchange-harness',
+  [string]$WorkspaceDir = '',
   [string]$PresetId = 'interchange'
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $MyInvocation.MyCommand.Path
 $utf8 = New-Object System.Text.UTF8Encoding($false)
+# Default workspace = this repo itself (a fresh clone works from any path).
+if ([string]::IsNullOrWhiteSpace($WorkspaceDir)) { $WorkspaceDir = $repo }
 
 # ---- 1. deploy the plugin package ----
 $targets = @()
@@ -55,17 +58,35 @@ Get-ChildItem $presetDir -Recurse -File -Include '*.yml', '*.md' | ForEach-Objec
 }
 Write-Host ('preset installed to: ' + $presetDir)
 
-# ---- 3. host row snippet ----
-Write-Host ''
-Write-Host 'Append the following entry to <DSH_HOME>\profiles\web\cordis.patch.yml:'
-Write-Host ''
-Write-Host '- insert:'
-Write-Host '    - id: interchange-dsh'
-Write-Host '      name: interchange-dsh'
-Write-Host '      config:'
-Write-Host ('        workspaceDir: ' + $ws)
-Write-Host '        apiBase: http://127.0.0.1:4120/api'
-Write-Host '        appBase: http://127.0.0.1:4120'
-Write-Host '        tools: false'
+# ---- 3. host row in the profile patch (idempotent) ----
+$snippet = "- insert:`r`n" +
+  "    - id: interchange-dsh`r`n" +
+  "      name: interchange-dsh`r`n" +
+  "      config:`r`n" +
+  ("        workspaceDir: " + $ws + "`r`n") +
+  "        apiBase: http://127.0.0.1:4120/api`r`n" +
+  "        appBase: http://127.0.0.1:4120`r`n" +
+  "        tools: false`r`n"
+$patchFiles = @()
+$profilesRoot = Join-Path $dshHome 'profiles'
+if (Test-Path $profilesRoot) {
+  $patchFiles = Get-ChildItem $profilesRoot -Recurse -Depth 3 -Filter 'cordis.patch.yml' -File | Select-Object -ExpandProperty FullName
+}
+if ($patchFiles.Count -gt 0) {
+  foreach ($pf in $patchFiles) {
+    $existing = [System.IO.File]::ReadAllText($pf, $utf8)
+    if ($existing.Contains('id: interchange-dsh')) {
+      Write-Host ('host row already present in ' + $pf)
+      continue
+    }
+    [System.IO.File]::WriteAllText($pf, $existing.TrimEnd() + "`r`n`r`n" + $snippet, $utf8)
+    Write-Host ('host row appended to ' + $pf)
+  }
+} else {
+  Write-Host ''
+  Write-Host 'No profile patch file found; append this entry to <DSH_HOME>\profiles\web\cordis.patch.yml:'
+  Write-Host ''
+  Write-Host $snippet
+}
 Write-Host ''
 Write-Host 'Then restart DSH and start a new session on the Interchange preset.'

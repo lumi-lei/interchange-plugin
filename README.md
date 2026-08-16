@@ -42,18 +42,24 @@ docx/pdf/xlsx/截图 OCR 不依赖 MarkItDown。
 
 ## 接入 DeepSeek Harness
 
-前置：本机已安装 DeepSeek Harness（`npx @deepseek-ai/dsh web` 可启动）。
+前置条件（新设备）：
+
+1. 安装 Node.js（≥ 22，建议最新 LTS）；
+2. 安装并至少启动过一次 DeepSeek Harness（例如 `npx @deepseek-ai/dsh web`）——插件是 DSH 的扩展，本仓库不含 DSH 本身；
+3. 本仓库已 `npm install` 并完成构建（见上节）。
 
 ```powershell
 npm run install:dsh
 # 等价于：powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
-安装器会：
+安装器会（**幂等，可重复运行**）：
 
-1. 把 `plugin/` 部署到 DSH 安装目录（profile 与 npx 缓存两种安装都会覆盖）；
-2. 在 `%DSH_HOME%\.agent-presets\interchange\` 生成「Interchange 协同」preset（含技能）；
-3. 打印需要追加到 `%DSH_HOME%\profiles\web\cordis.patch.yml` 的宿主行片段。
+1. 把 `plugin/` 部署到本机所有 DSH 安装位置（profile 与 npx 缓存）；
+2. 在 `%DSH_HOME%\.agent-presets\interchange\` 生成/刷新「Interchange 协同」preset（含技能，自动写入真实工作区路径）；
+3. 把宿主行写入 `%DSH_HOME%\profiles\web\cordis.patch.yml`（已存在则跳过；找不到补丁文件时打印片段供手工追加）。
+
+默认工作区 = 本仓库自身目录；若仓库与服务分开部署，可指定：`install.ps1 -WorkspaceDir D:\other\path`。
 
 然后：**重启 DSH** → **新建会话**选择「Interchange 协同」模式。
 
@@ -65,9 +71,7 @@ npm run install:dsh
 
 ### 配置
 
-插件行的 `config.workspaceDir` 指向本项目根目录（默认 `D:/code/interchange-harness`，安装时按 `install.ps1 -WorkspaceDir ...` 改写，或部署后直接编辑组合文件）。未配置时启动/解析操作会给出明确报错。
-
-环境变量 `INTERCHANGE_WORKSPACE` 暂未使用；请通过 `-WorkspaceDir` 参数或编辑组合文件指定。
+插件行的 `config.workspaceDir` 指向本项目根目录（安装器自动写入仓库自身路径；若仓库与服务分开部署，用 `install.ps1 -WorkspaceDir ...` 指定）。未配置时启动/解析操作会给出明确报错。
 
 ## 安全与数据边界
 
