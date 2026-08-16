@@ -7,6 +7,7 @@ import {
   Download,
   FileText,
   Loader2,
+  Palette,
   Plus,
   RefreshCw,
   Save,
@@ -31,6 +32,14 @@ import {
   type RoleProfile,
   type RoleRecognition,
 } from './api';
+import {
+  applyTheme,
+  followSystemTheme,
+  persistTheme,
+  resolveInitialTheme,
+  THEMES,
+  type ThemeId,
+} from './theme';
 
 type Tab = 'compose' | 'contacts' | 'roles';
 type DraftState = Draft & { selected: boolean; editedContent: string; sendStatus?: string };
@@ -83,6 +92,9 @@ export function App() {
   const [tab, setTab] = useState<Tab>('compose');
   const [expandedContactId, setExpandedContactId] = useState<number | null>(null);
   const [showNewContact, setShowNewContact] = useState(false);
+  const [theme, setTheme] = useState<ThemeId>(() => resolveInitialTheme());
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const themeMenuRef = useRef<HTMLDivElement | null>(null);
   const [roleEditKey, setRoleEditKey] = useState('');
   const [newRoleLabel, setNewRoleLabel] = useState('');
   const [newRoleDefaultPreference, setNewRoleDefaultPreference] = useState('');
@@ -104,6 +116,36 @@ export function App() {
     },
     [],
   );
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  useEffect(() => followSystemTheme(setTheme), []);
+
+  useEffect(() => {
+    if (!themeMenuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (themeMenuRef.current && !themeMenuRef.current.contains(event.target as Node)) {
+        setThemeMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setThemeMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [themeMenuOpen]);
+
+  function pickTheme(id: ThemeId) {
+    setTheme(id);
+    persistTheme(id);
+    setThemeMenuOpen(false);
+  }
 
   function notify(message: string) {
     setStatus(message);
@@ -822,6 +864,35 @@ export function App() {
         <button className="icon-btn" onClick={() => load().catch((err) => setError(err.message))} title="刷新">
           <RefreshCw size={14} />
         </button>
+        <div className="theme-switcher" ref={themeMenuRef}>
+          <button
+            className="icon-btn"
+            onClick={() => setThemeMenuOpen((value) => !value)}
+            title="切换配色主题"
+            aria-label="切换配色主题"
+            aria-expanded={themeMenuOpen}
+          >
+            <Palette size={14} />
+          </button>
+          {themeMenuOpen && (
+            <div className="theme-menu" role="menu" aria-label="配色主题">
+              <div className="theme-menu-head">配色主题</div>
+              {THEMES.map((item) => (
+                <button
+                  key={item.id}
+                  role="menuitemradio"
+                  aria-checked={theme === item.id}
+                  className={`theme-option${theme === item.id ? ' active' : ''}`}
+                  onClick={() => pickTheme(item.id)}
+                >
+                  <span className={`swatch ${item.id}`} aria-hidden="true" />
+                  <span>{item.label}</span>
+                  {theme === item.id && <Check className="theme-check" size={13} />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </header>
 
       <nav className="tab-bar" aria-label="主导航">
