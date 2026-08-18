@@ -98,6 +98,8 @@ function sampleDraftRequest(): DraftRequest {
       customPreference: '',
       roleProfileKey: '',
       roleProfileDescription: '',
+      dsgEnabled: false,
+      dsgSkills: [],
       usageCount: 0,
       preferenceSets: [],
       updatedAt: '',

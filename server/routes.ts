@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { config } from './config.js';
-import { repo, toPublicContact, type Contact } from './db.js';
+import { repo, toPublicContact, type Contact, type RoleRow } from './db.js';
 import { buildDeliveryRequest } from './delivery.js';
 import { generateDraft, generateRoleSuggestion, recognizeRole } from './ai/modelRouter.js';
 import { assertExternalFileModelAllowed, externalModelKindForSource } from './ai/compliance.js';
@@ -10,6 +10,8 @@ import { parseUploadedFile } from './parser.js';
 import { aiRateLimit, apiRateLimit, roleRecognitionRateLimit } from './rateLimit.js';
 import { findRoleProfileByName, roleProfiles } from './roleProfiles.js';
 import { findRoleFocusPresetByName, roleFocusPresets } from './roles.js';
+import { discoverCatalog } from './dsg/catalog.js';
+import { removeRolePreset, regenerateAll, writeRolePreset } from './dsg/generate.js';
 
 const router = express.Router();
 const upload = multer({
@@ -58,6 +60,8 @@ const roleSchema = z.object({
   defaultPreference: z.string().default(''),
   roleProfileKey: z.string().trim().max(80).default(''),
   roleProfileDescription: z.string().trim().max(400).default(''),
+  dsgEnabled: z.boolean().default(false),
+  dsgSkills: z.array(z.string()).default([]),
 });
 
 const preferenceSetSchema = z.object({
@@ -92,6 +96,18 @@ function validateRoleProfile(input: { roleProfileKey?: string; roleProfileDescri
   throw Object.assign(new Error('角色识别方式仅支持自动识别或自定义角色说明。'), { status: 400 });
 }
 
+// 角色保存后同步其 DSH 会话预设。生成失败不使角色 CRUD 回滚，而是以非致命
+// dsgWarning 返回给前端展示，保证「角色已保存但预设未生成」时可被用户看到。
+async function syncRolePreset(role: RoleRow) {
+  try {
+    const result = await writeRolePreset(role);
+    return { warning: '', result };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { warning: `DSH 会话预设生成失败：${message}`, result: null };
+  }
+}
+
 router.get('/health', (_req, res) => {
   res.json({
     ok: true,
@@ -106,6 +122,14 @@ router.use(apiRateLimit);
 
 router.get('/roles', async (_req, res) => {
   res.json(await repo.roles());
+});
+
+router.get('/dsg/catalog', async (_req, res) => {
+  res.json(await discoverCatalog());
+});
+
+router.post('/dsg/regenerate', async (_req, res) => {
+  res.json(await regenerateAll(await repo.roles()));
 });
 
 router.get('/role-profiles', (_req, res) => {
@@ -160,7 +184,9 @@ router.post('/role-suggestions', aiRateLimit, async (req, res) => {
 router.post('/roles', async (req, res) => {
   const body = roleSchema.parse(req.body);
   validateRoleProfile(body);
-  res.status(201).json(await repo.createRole(body));
+  const role = await repo.createRole(body);
+  const { warning } = await syncRolePreset(role);
+  res.status(201).json(warning ? { ...role, dsgWarning: warning } : role);
 });
 
 router.put('/roles/:key', async (req, res) => {
@@ -171,11 +197,18 @@ router.put('/roles/:key', async (req, res) => {
 router.patch('/roles/:key', async (req, res) => {
   const body = roleSchema.partial().parse(req.body);
   validateRoleProfile(body);
-  res.json(await repo.updateRole(req.params.key, body));
+  const role = await repo.updateRole(req.params.key, body);
+  const { warning } = await syncRolePreset(role);
+  res.json(warning ? { ...role, dsgWarning: warning } : role);
 });
 
 router.delete('/roles/:key', async (req, res) => {
   await repo.deleteRole(req.params.key);
+  try {
+    await removeRolePreset(req.params.key);
+  } catch (error) {
+    console.warn('interchange: 清理角色预设失败', error);
+  }
   res.status(204).send();
 });
 

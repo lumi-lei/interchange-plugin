@@ -1,8 +1,10 @@
 import 'dotenv/config';
+import os from 'node:os';
 import path from 'node:path';
 
 const root = process.cwd();
 const defaultSqlitePath = path.resolve(root, './data/interchange.sqlite');
+const defaultDshHome = process.env.DSH_HOME ?? path.join(os.homedir(), '.dsh');
 
 export const DISABLED_EXTERNAL_MODEL_PROVIDER = 'none' as const;
 export type TextModelProviderName = 'deepseek' | (string & {});
@@ -31,6 +33,13 @@ export const config = {
   apiRateLimitMax: Number(process.env.API_RATE_LIMIT_MAX ?? 100),
   aiRateLimitMax: Number(process.env.AI_RATE_LIMIT_MAX ?? 3),
   roleRecognitionRateLimitMax: Number(process.env.ROLE_RECOGNITION_RATE_LIMIT_MAX ?? 20),
+  // DeepSeek Harness 配置根目录（用于按角色生成会话预设）。默认 ~/.dsh，
+  // 测试可通过 DSH_HOME 或 DSG_PRESETS_DIR 隔离到临时目录。
+  dshHome: defaultDshHome,
+  agentPresetsDir: process.env.DSG_PRESETS_DIR ?? path.join(defaultDshHome, '.agent-presets'),
+  // 生成的角色预设里 interchange-tools 行的 workspaceDir：指向本服务运行目录
+  // （与 sqlite 同源）。统一转成正斜杠，保证 YAML 无需引号也能正确解析。
+  dsgWorkspaceDir: root.replaceAll('\\', '/'),
 };
 
 export function requireDeepSeekKey() {

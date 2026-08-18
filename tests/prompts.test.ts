@@ -119,6 +119,8 @@ function sampleDraftRequest(): DraftRequest {
       customPreference: '自定义偏好：补充风险。',
       roleProfileKey: '',
       roleProfileDescription: '',
+      dsgEnabled: false,
+      dsgSkills: [],
       usageCount: 0,
       preferenceSets: [],
       updatedAt: '',

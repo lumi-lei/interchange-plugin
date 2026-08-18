@@ -59,11 +59,13 @@ Get-ChildItem $presetDir -Recurse -File -Include '*.yml', '*.md' | ForEach-Objec
 Write-Host ('preset installed to: ' + $presetDir)
 
 # ---- 3. host row in the profile patch (idempotent) ----
+$dshHomeFwd = $dshHome.Replace('\', '/')
 $snippet = "- insert:`r`n" +
   "    - id: interchange-dsh`r`n" +
   "      name: interchange-dsh`r`n" +
   "      config:`r`n" +
   ("        workspaceDir: " + $ws + "`r`n") +
+  ("        dshHome: " + $dshHomeFwd + "`r`n") +
   "        apiBase: http://127.0.0.1:4120/api`r`n" +
   "        appBase: http://127.0.0.1:4120`r`n" +
   "        tools: false`r`n"

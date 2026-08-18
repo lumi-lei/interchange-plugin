@@ -1044,6 +1044,54 @@ input[type='checkbox'] {
   margin: 4px 0 8px;
 }
 
+/* ── DSH 插件与技能（角色预设）选择 ─────────────────────────── */
+
+.dsg-capability {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.dsg-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dsg-group > strong {
+  font-size: 12.5px;
+}
+
+.dsg-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px 12px;
+}
+
+.dsg-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dsg-check input {
+  flex: none;
+}
+
+.dsg-check small {
+  margin-left: auto;
+  font-size: 10.5px;
+}
+
 /* ── 动画 ────────────────────────────────────────────────── */
 
 .spin {

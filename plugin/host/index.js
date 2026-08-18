@@ -10,6 +10,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import path from 'node:path'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -22,10 +23,19 @@ const Config = z.object({
   // 指向 interchange-harness 项目根目录（含 server/、dist-server/、data/、.env）。
   // 未配置时，start/parse 等需要工作区的操作会给出明确报错；status 仍可查询。
   workspaceDir: z.string().default(''),
+  // DeepSeek Harness 配置根目录；按角色生成会话预设时服务端据此定位 .agent-presets。
+  // 留空时回退到 $DSH_HOME 或 ~/.dsh。
+  dshHome: z.string().default(''),
   apiBase: z.string().default('http://127.0.0.1:4120/api'),
   appBase: z.string().default('http://127.0.0.1:4120'),
   startTimeoutMs: z.number().default(30000),
 })
+
+function resolveDshHome(config) {
+  if (typeof config.dshHome === 'string' && config.dshHome.trim() !== '') return config.dshHome.trim()
+  if (typeof process.env.DSH_HOME === 'string' && process.env.DSH_HOME.trim() !== '') return process.env.DSH_HOME.trim()
+  return path.join(homedir(), '.dsh')
+}
 
 function workspaceDir(config) {
   const dir = config.workspaceDir
@@ -117,7 +127,7 @@ function createManager(config, logger) {
         cwd: dir,
         stdio: 'ignore',
         windowsHide: true,
-        env: { ...process.env },
+        env: { ...process.env, DSH_HOME: resolveDshHome(config) },
       })
       child.on('error', (error) => log(`服务进程启动失败: ${error.message}`))
       child.on('exit', () => { if (state.lastSpawned === child.pid) state.lastSpawned = null })

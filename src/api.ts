@@ -14,6 +14,9 @@ export type Role = {
   customPreference: string;
   roleProfileKey: string;
   roleProfileDescription: string;
+  dsgEnabled: boolean;
+  dsgSkills: string[];
+  dsgWarning?: string;
   usageCount: number;
   preferenceSets: PreferenceSet[];
 };
@@ -89,6 +92,18 @@ export type RoleFocusPreset = {
   preferenceTemplates?: PreferenceTemplate[];
 };
 
+export type DsgSkillItem = {
+  name: string;
+  description: string;
+  source: 'interchange' | 'global' | 'project';
+};
+
+export type DsgCatalog = {
+  skills: DsgSkillItem[];
+  agentPresetsDir: string;
+  workspaceDir: string;
+};
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
   const text = await response.text();
@@ -105,12 +120,14 @@ export const api = {
   resolveRoleProfile: (roleLabel: string) => request<RoleRecognition>('/api/role-profiles/resolve', {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ roleLabel }),
   }),
-  createRole: (role: Pick<Role, 'label' | 'defaultPreference' | 'roleProfileKey' | 'roleProfileDescription'>) => request<Role>('/api/roles', {
+  createRole: (role: Pick<Role, 'label' | 'defaultPreference' | 'roleProfileKey' | 'roleProfileDescription' | 'dsgEnabled' | 'dsgSkills'>) => request<Role>('/api/roles', {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(role),
   }),
-  updateRole: (key: string, role: Partial<Pick<Role, 'label' | 'defaultPreference' | 'roleProfileKey' | 'roleProfileDescription'>>) => request<Role>(`/api/roles/${key}`, {
+  updateRole: (key: string, role: Partial<Pick<Role, 'label' | 'defaultPreference' | 'roleProfileKey' | 'roleProfileDescription' | 'dsgEnabled' | 'dsgSkills'>>) => request<Role>(`/api/roles/${key}`, {
     method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(role),
   }),
+  dsgCatalog: () => request<DsgCatalog>('/api/dsg/catalog'),
+  regenerateDsgPresets: () => request<{ regenerated: number }>('/api/dsg/regenerate', { method: 'POST' }),
   generateRoleSuggestion: (input: RoleSuggestionInput) => request<{ content: string; source: 'preset' | 'deepseek' }>('/api/role-suggestions', {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
   }),

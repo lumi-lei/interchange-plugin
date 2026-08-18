@@ -44,6 +44,8 @@ const sampleDraftRequest: DraftRequest = {
     customPreference: '',
     roleProfileKey: '',
     roleProfileDescription: '',
+    dsgEnabled: false,
+    dsgSkills: [],
     usageCount: 0,
     preferenceSets: [],
     updatedAt: '',
@@ -401,6 +403,24 @@ describe('Interchange API', () => {
     expect(custom.body.roleMode).toBe('custom');
     await request(app).delete(`/api/preference-sets/${preferenceSet.body.id}`).expect(204);
     await request(app).delete(`/api/roles/${role.body.key}`).expect(204);
+  });
+
+  it('exposes the DSH preset catalog and round-trips role capability selections', async () => {
+    const app = createApp();
+    const catalogResponse = await request(app).get('/api/dsg/catalog').expect(200);
+    expect(Array.isArray(catalogResponse.body.skills)).toBe(true);
+    expect(catalogResponse.body.skills.some((skill: { name: string }) => skill.name.startsWith('interchange-'))).toBe(true);
+
+    const role = await request(app)
+      .post('/api/roles')
+      .send({ label: '预设角色', dsgEnabled: false, dsgSkills: ['interchange-flow'] })
+      .expect(201);
+    expect(role.body.dsgEnabled).toBe(false);
+    expect(role.body.dsgSkills).toEqual(['interchange-flow']);
+
+    const listed = await request(app).get('/api/roles').expect(200);
+    const found = listed.body.find((item: { key: string }) => item.key === role.body.key);
+    expect(found.dsgSkills).toEqual(['interchange-flow']);
   });
 
   it('rejects incomplete contact-only role settings', async () => {

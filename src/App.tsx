@@ -27,6 +27,7 @@ import {
   type Contact,
   type ContactInput,
   type Draft,
+  type DsgCatalog,
   type Role,
   type RoleFocusPreset,
   type RoleProfile,
@@ -73,6 +74,62 @@ function matchedRoleFocusPreset(label: string, presets: RoleFocusPreset[]) {
   return presets.find((preset) => [preset.label, ...preset.aliases].some((alias) => normalizeRoleName(alias) === normalized)) ?? null;
 }
 
+function DsgCapabilityEditor(props: {
+  catalog: DsgCatalog | null;
+  enabled: boolean;
+  skills: string[];
+  onEnabledChange: (value: boolean) => void;
+  onSkillsChange: (skills: string[]) => void;
+}) {
+  const { catalog, enabled, skills, onEnabledChange, onSkillsChange } = props;
+  if (!catalog) {
+    return <p className="muted-copy">正在加载 DSH 技能目录…</p>;
+  }
+  const toggleSkill = (name: string, checked: boolean) => {
+    const next = checked ? [...new Set([...skills, name])] : skills.filter((item) => item !== name);
+    onSkillsChange(next);
+  };
+  return (
+    <div className="dsg-capability">
+      <div className="toggle-row">
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="切换 DSH 会话预设"
+          title={enabled ? '关闭：不生成该角色的 DSH 会话预设' : '开启：生成该角色的 DSH 会话预设'}
+          onClick={() => onEnabledChange(!enabled)}
+        >
+          {enabled ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
+        </button>
+        <span>为此角色生成 DSH 会话预设（新建会话时选择该角色，只启用下方勾选的技能）</span>
+      </div>
+      {enabled && (
+        <>
+          <div className="dsg-group">
+            <strong>技能</strong>
+            <div className="dsg-checks">
+              {catalog.skills.map((skill) => (
+                <label key={skill.name} className="dsg-check" title={skill.description || skill.name}>
+                  <input
+                    type="checkbox"
+                    checked={skills.includes(skill.name)}
+                    onChange={(event) => toggleSkill(skill.name, event.target.checked)}
+                  />
+                  <span>{skill.name}</span>
+                  <small className="muted-copy">
+                    {skill.source === 'interchange' ? '内置' : skill.source === 'global' ? '全局' : '项目'}
+                  </small>
+                </label>
+              ))}
+            </div>
+          </div>
+          <p className="muted-copy">生成的预设写入 {catalog.agentPresetsDir}；保存后在 DSH「新建会话」选择该角色预设。</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function App() {
   const [health, setHealth] = useState<{ deepseekConfigured: boolean; model: string } | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -105,6 +162,9 @@ export function App() {
   const [preferenceSetName, setPreferenceSetName] = useState('');
   const [preferenceSetContent, setPreferenceSetContent] = useState('');
   const [preferenceTemplateKey, setPreferenceTemplateKey] = useState('');
+  const [dsgCatalog, setDsgCatalog] = useState<DsgCatalog | null>(null);
+  const [newRoleDsgEnabled, setNewRoleDsgEnabled] = useState(false);
+  const [newRoleDsgSkills, setNewRoleDsgSkills] = useState<string[]>([]);
   const [contactSearch, setContactSearch] = useState('');
   const [contactRoleFilter, setContactRoleFilter] = useState('all');
   const [contactStatusFilter, setContactStatusFilter] = useState<ContactStatusFilter>('active');
@@ -204,6 +264,14 @@ export function App() {
   useEffect(() => {
     load().catch((err) => setError(err.message));
   }, []);
+
+  useEffect(() => {
+    api.dsgCatalog().then(setDsgCatalog).catch(() => {});
+  }, []);
+
+  function defaultDsgSkills() {
+    return dsgCatalog ? dsgCatalog.skills.filter((skill) => skill.source === 'interchange').map((skill) => skill.name) : [];
+  }
 
   async function parseTextOrFile(file?: File) {
     setBusy('parse');
@@ -419,9 +487,11 @@ export function App() {
       defaultPreference: role.defaultPreference,
       roleProfileKey,
       roleProfileDescription,
+      dsgEnabled: role.dsgEnabled,
+      dsgSkills: role.dsgSkills,
     });
     setRoles((current) => current.map((item) => (item.key === updated.key ? updated : item)));
-    notify(`${role.label} 角色偏好已保存`);
+    notify(updated.dsgWarning ?? `${role.label} 角色偏好已保存`);
   }
 
   async function createRole() {
@@ -435,6 +505,8 @@ export function App() {
         defaultPreference: newRoleDefaultPreference,
         roleProfileKey: newRoleProfileKey === 'custom' ? 'custom' : recognized?.source === 'deepseek' ? 'deepseek' : '',
         roleProfileDescription: newRoleProfileKey === 'custom' ? newRoleProfileDescription : recognized?.source === 'deepseek' ? recognized.description : '',
+        dsgEnabled: newRoleDsgEnabled,
+        dsgSkills: newRoleDsgSkills,
       });
       setRoles((current) => [...current, role]);
       setRoleEditKey(role.key);
@@ -443,7 +515,9 @@ export function App() {
       setNewRoleProfileKey('');
       setNewRoleProfileDescription('');
       setNewRoleRecognition(null);
-      notify(`已新增角色：${role.label}`);
+      setNewRoleDsgEnabled(false);
+      setNewRoleDsgSkills([]);
+      notify(role.dsgWarning ?? `已新增角色：${role.label}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -589,6 +663,19 @@ export function App() {
       notify(`已删除角色：${role.label}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function regenerateDsg() {
+    setBusy('dsg-regenerate');
+    setError('');
+    try {
+      const { regenerated } = await api.regenerateDsgPresets();
+      notify(`已重新生成 ${regenerated} 个角色预设`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy('');
     }
   }
 
@@ -1314,6 +1401,10 @@ export function App() {
                 <div className="panel-head">
                   <h2 className="panel-title"><Settings2 size={15} />角色列表</h2>
                   <span className="panel-sub">点击选择要编辑的角色</span>
+                  <button className="btn sm" onClick={regenerateDsg} disabled={busy === 'dsg-regenerate'}>
+                    {busy === 'dsg-regenerate' ? <Loader2 className="spin" size={13} /> : <RefreshCw size={13} />}
+                    重新生成全部预设
+                  </button>
                 </div>
                 {roles.length === 0 ? (
                   <div className="empty">还没有角色。在下方「新增角色」创建一个开始使用。</div>
@@ -1394,6 +1485,18 @@ export function App() {
                       onChange={(event) => setNewRoleDefaultPreference(event.target.value)}
                     />
                   </div>
+                  <DsgCapabilityEditor
+                    catalog={dsgCatalog}
+                    enabled={newRoleDsgEnabled}
+                    skills={newRoleDsgSkills}
+                    onEnabledChange={(value) => {
+                      setNewRoleDsgEnabled(value);
+                      if (value) {
+                        setNewRoleDsgSkills((current) => (current.length ? current : defaultDsgSkills()));
+                      }
+                    }}
+                    onSkillsChange={setNewRoleDsgSkills}
+                  />
                   <div className="row-actions">
                     <button className="btn" onClick={generateNewRoleDefaultPreference} disabled={busy === 'role-suggestion' || !newRoleLabel.trim()}>
                       <Sparkles size={13} />
@@ -1487,6 +1590,24 @@ export function App() {
                         删除角色
                       </button>
                     </div>
+                  </div>
+
+                  <div className="sub-section">
+                    <div className="sub-head">
+                      <strong>DSH 技能</strong>
+                      <span>选择该角色时只启用勾选的技能</span>
+                    </div>
+                    <DsgCapabilityEditor
+                      catalog={dsgCatalog}
+                      enabled={currentRole.dsgEnabled}
+                      skills={currentRole.dsgSkills}
+                      onEnabledChange={(value) => setRoles((items) => items.map((item) => item.key === currentRole.key ? {
+                        ...item,
+                        dsgEnabled: value,
+                        dsgSkills: value && item.dsgSkills.length === 0 ? defaultDsgSkills() : item.dsgSkills,
+                      } : item))}
+                      onSkillsChange={(skills) => setRoles((items) => items.map((item) => item.key === currentRole.key ? { ...item, dsgSkills: skills } : item))}
+                    />
                   </div>
 
                   <div className="sub-section">

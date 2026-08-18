@@ -67,12 +67,21 @@ export type RoleRow = {
   customPreference: string;
   roleProfileKey: string;
   roleProfileDescription: string;
+  dsgEnabled: boolean;
+  dsgSkills: string[];
   usageCount: number;
   preferenceSets: PreferenceSet[];
   updatedAt: string;
 };
 
-type RoleInput = { label: string; defaultPreference?: string; roleProfileKey?: string; roleProfileDescription?: string };
+type RoleInput = {
+  label: string;
+  defaultPreference?: string;
+  roleProfileKey?: string;
+  roleProfileDescription?: string;
+  dsgEnabled?: boolean;
+  dsgSkills?: string[];
+};
 type PreferenceSetInput = { name: string; content: string; sortOrder?: number };
 
 const useTurso = process.env.NODE_ENV !== 'test' && Boolean(config.tursoDatabaseUrl && config.tursoAuthToken);
@@ -108,10 +117,30 @@ function numericValue(value: unknown) {
   return Number(value ?? 0);
 }
 
+function stringArrayValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item));
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed.map((item) => String(item));
+    } catch {}
+  }
+  return [];
+}
+
 async function ensureColumn(tableName: string, columnName: string, definition: string) {
   const columns = await db.execute(`PRAGMA table_info(${tableName})`);
   if (!columns.rows.some((column) => value<string>(column, 'name') === columnName)) {
     await db.execute(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
+}
+
+async function dropColumnIfExists(tableName: string, columnName: string) {
+  const columns = await db.execute(`PRAGMA table_info(${tableName})`);
+  if (columns.rows.some((column) => value<string>(column, 'name') === columnName)) {
+    await db.execute(`ALTER TABLE ${tableName} DROP COLUMN ${columnName}`);
   }
 }
 
@@ -222,6 +251,11 @@ async function runMigrations() {
   await ensureColumn('contacts', 'dingtalk_secret', "TEXT NOT NULL DEFAULT ''");
   await ensureColumn('contacts', 'dingtalk_keyword', "TEXT NOT NULL DEFAULT ''");
   await ensureColumn('send_records', 'delivery_type', "TEXT NOT NULL DEFAULT 'generic_webhook'");
+  await ensureColumn('roles', 'dsg_enabled', 'INTEGER NOT NULL DEFAULT 0');
+  await ensureColumn('roles', 'dsg_skills', "TEXT NOT NULL DEFAULT '[]'");
+
+  // 工具勾选已移除：删除旧库遗留的 dsg_tools 列（幂等，仅存在时删除）。
+  await dropColumnIfExists('roles', 'dsg_tools');
 
   await removeLegacyBuiltinRoles();
 
@@ -287,6 +321,8 @@ function mapRole(row: any, preferenceSets: PreferenceSet[] = []): RoleRow {
     customPreference: String(row.custom_preference ?? ''),
     roleProfileKey: String(row.role_profile_key ?? ''),
     roleProfileDescription: String(row.role_profile_description ?? ''),
+    dsgEnabled: Boolean(row.dsg_enabled),
+    dsgSkills: stringArrayValue(row.dsg_skills),
     usageCount: numericValue(row.usage_count),
     preferenceSets,
     updatedAt: String(row.updated_at ?? ''),
@@ -343,14 +379,16 @@ export const repo = {
     const key = `custom_${randomUUID()}`;
     const timestamp = now();
     await db.execute({
-      sql: `INSERT INTO roles (key, label, default_preference, custom_preference, role_profile_key, role_profile_description, updated_at)
-            VALUES (?, ?, ?, '', ?, ?, ?)`,
+      sql: `INSERT INTO roles (key, label, default_preference, custom_preference, role_profile_key, role_profile_description, dsg_enabled, dsg_skills, updated_at)
+            VALUES (?, ?, ?, '', ?, ?, ?, ?, ?)`,
       args: [
         key,
         input.label.trim(),
         input.defaultPreference?.trim() ?? '',
         input.roleProfileKey?.trim() ?? '',
         input.roleProfileDescription?.trim() ?? '',
+        input.dsgEnabled ? 1 : 0,
+        JSON.stringify(input.dsgSkills ?? []),
         timestamp,
       ],
     });
@@ -364,9 +402,11 @@ export const repo = {
     const customPreference = input.customPreference ?? existing.customPreference;
     const roleProfileKey = input.roleProfileKey?.trim() ?? existing.roleProfileKey;
     const roleProfileDescription = input.roleProfileDescription?.trim() ?? existing.roleProfileDescription;
+    const dsgEnabled = input.dsgEnabled ?? existing.dsgEnabled;
+    const dsgSkills = input.dsgSkills ?? existing.dsgSkills;
     await db.execute({
-      sql: `UPDATE roles SET label = ?, default_preference = ?, custom_preference = ?, role_profile_key = ?, role_profile_description = ?, updated_at = ? WHERE key = ?`,
-      args: [label, defaultPreference, customPreference, roleProfileKey, roleProfileDescription, now(), key],
+      sql: `UPDATE roles SET label = ?, default_preference = ?, custom_preference = ?, role_profile_key = ?, role_profile_description = ?, dsg_enabled = ?, dsg_skills = ?, updated_at = ? WHERE key = ?`,
+      args: [label, defaultPreference, customPreference, roleProfileKey, roleProfileDescription, dsgEnabled ? 1 : 0, JSON.stringify(dsgSkills), now(), key],
     });
     return (await repo.role(key))!;
   },
@@ -487,6 +527,8 @@ export const repo = {
         customPreference: contact.customRolePreference,
         roleProfileKey: '',
         roleProfileDescription: '',
+        dsgEnabled: false,
+        dsgSkills: [],
         usageCount: 0,
         preferenceSets: [],
         updatedAt: contact.updatedAt,
