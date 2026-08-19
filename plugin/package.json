@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Interchange 本地优先协同工具（角色化转化/知识沉淀/协同发送）的 DeepSeek Harness 插件：宿主侧服务生命周期管理 + interchange_* 模型工具 + 设置面板（内嵌 Web 应用）。",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lumi-lei/interchange-plugin.git",
+    "directory": "plugin"
+  },
   "license": "MIT",
   "keywords": [
     "deepseek-harness",
@@ -18,6 +23,7 @@
   "files": [
     "host",
     "client",
+    "cordis.patch.yml",
     "README.md"
   ],
   "exports": {
@@ -34,6 +40,9 @@
     "access": "public"
   },
   "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web",
       "immediately": true
