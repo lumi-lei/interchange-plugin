@@ -4,6 +4,8 @@ node_modules/
 .firecrawl/
 dist/
 dist-server/
+output/
+tmp/
 data/
 .env*
 !.env.example
