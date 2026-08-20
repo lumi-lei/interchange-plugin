@@ -1,0 +1,4 @@
+interface:
+  display_name: "Interchange Message Transformer"
+  short_description: "Turn facts into role-specific drafts"
+  default_prompt: "Use $interchange-message-transformer to rewrite objective project facts for product, QA, tech leads, leaders, customers, and AI coding tools."

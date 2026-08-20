@@ -1,5 +1,21 @@
 # interchange-dsh
 
+## 独立安装
+
+发布到 npm 后，可直接安装并启用包内运行时：
+
+```sh
+dsh plugin --profile web add interchange-dsh
+```
+
+重启 DSH 后，在设置页打开「Interchange」并启动服务。SQLite 数据、PID 文件以及可选的环境配置均保存到 `~/.dsh/interchange/`，不会写入 npm 的 `node_modules` 目录。
+
+如需调用 DeepSeek，在 `~/.dsh/interchange/.env` 中配置：
+
+```dotenv
+DEEPSEEK_API_KEY=你的密钥
+```
+
 Interchange 本地优先协同工具（角色化信息转化 / 知识沉淀 / 协同发送）的 **DeepSeek Harness（DSH）插件**。
 
 - **宿主侧**（`host/`）：Interchange 本地服务（Express + SQLite，`127.0.0.1:4120`）的 sidecar 生命周期管理 + 面板 HTTP 桥 + `interchange_*` 模型工具。
@@ -14,7 +30,6 @@ Interchange 本地优先协同工具（角色化信息转化 / 知识沉淀 / �
 - id: interchange-dsh
   config:
     tools: false
-    workspaceDir: 'D:/code/interchange-harness'  # 指向 interchange-harness 项目根目录
     apiBase: 'http://127.0.0.1:4120/api'
     appBase: 'http://127.0.0.1:4120'
 ```
@@ -33,7 +48,7 @@ Interchange 本地优先协同工具（角色化信息转化 / 知识沉淀 / �
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
 | `tools` | `false` | `false` = 宿主组合行（服务 + 面板桥）；`true` = 会话工具行 |
-| `workspaceDir` | `''` | interchange-harness 项目根目录（含 `server/`、`dist-server/`、`data/`、`.env`），服务运行所需 |
+| `workspaceDir` | `''` | 可选开发覆盖目录；留空时使用包内预构建运行时 |
 | `dshHome` | `$DSH_HOME` 或 `~/.dsh` | DSH 配置根目录，服务端据此定位 `.agent-presets` |
 | `apiBase` | `http://127.0.0.1:4120/api` | 本地服务 API 地址 |
 | `appBase` | `http://127.0.0.1:4120` | 内嵌 Web 应用地址 |

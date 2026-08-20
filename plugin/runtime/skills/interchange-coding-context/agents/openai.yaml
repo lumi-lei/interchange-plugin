@@ -1,0 +1,4 @@
+interface:
+  display_name: "Interchange Coding Context"
+  short_description: "Create AI coding task context from facts"
+  default_prompt: "Use $interchange-coding-context to convert objective project facts into an actionable prompt for an AI coding tool."

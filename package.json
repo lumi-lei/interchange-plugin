@@ -9,6 +9,8 @@
     "dev:server": "tsx watch server/index.ts",
     "dev:client": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
+    "build:plugin-runtime": "npm run build && node scripts/build-plugin-runtime.mjs",
+    "test:plugin-runtime": "node scripts/smoke-plugin-runtime.mjs",
     "start": "node dist-server/server/index.js",
     "test": "vitest run",
     "server:build": "tsc -p tsconfig.server.json",

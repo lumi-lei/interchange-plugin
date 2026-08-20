@@ -1,0 +1,4 @@
+interface:
+  display_name: "Interchange Human Confirmation"
+  short_description: "Require review before sending drafts"
+  default_prompt: "Use $interchange-human-confirmation to review generated Interchange drafts and confirm what may be sent."

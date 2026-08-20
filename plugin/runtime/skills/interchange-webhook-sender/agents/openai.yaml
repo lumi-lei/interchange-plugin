@@ -1,0 +1,4 @@
+interface:
+  display_name: "Interchange Webhook Sender"
+  short_description: "Send confirmed drafts to webhooks"
+  default_prompt: "Use $interchange-webhook-sender to send only user-confirmed Interchange messages to webhook URLs."

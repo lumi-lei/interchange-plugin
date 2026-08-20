@@ -1,0 +1,4 @@
+interface:
+  display_name: "Interchange Connected Mode"
+  short_description: "Optionally use a local Interchange server"
+  default_prompt: "Use $interchange-connected-mode to check a local Interchange server and reuse its contacts, roles, parsing, generation, or sending APIs when available."

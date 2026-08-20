@@ -12,11 +12,14 @@ import { existsSync } from 'node:fs'
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
 const name = 'interchange-dsh'
 const PIDFILE_NAME = '.interchange-dsh.pid'
+const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const bundledRuntimeDir = path.join(packageDir, 'runtime')
 
 const Config = z.object({
   tools: z.boolean().default(false),
@@ -37,23 +40,29 @@ function resolveDshHome(config) {
   return path.join(homedir(), '.dsh')
 }
 
-function workspaceDir(config) {
+function hasCustomWorkspace(config) {
   const dir = config.workspaceDir
-  if (typeof dir !== 'string' || dir.trim() === '') {
-    throw new Error('interchange-dsh: workspaceDir 未配置。请在插件行的 config 中把 workspaceDir 设为 interchange-harness 项目目录（例如 D:/code/interchange-harness）。')
-  }
-  return dir
+  return typeof dir === 'string' && dir.trim() !== ''
+}
+
+function workspaceDir(config) {
+  return hasCustomWorkspace(config) ? config.workspaceDir.trim() : bundledRuntimeDir
+}
+
+function stateDir(config) {
+  return hasCustomWorkspace(config)
+    ? path.join(workspaceDir(config), 'data')
+    : path.join(resolveDshHome(config), 'interchange')
 }
 
 // ── sidecar 管理器（仅宿主实例创建） ───────────────────────────────────────
 
 function createManager(config, logger) {
   const state = { starting: null }
-  const pidfilePath = () => path.join(config.workspaceDir, 'data', PIDFILE_NAME)
+  const pidfilePath = () => path.join(stateDir(config), PIDFILE_NAME)
   const log = (message) => { try { logger?.warn(`interchange-dsh: ${message}`) } catch {} }
 
   async function readPidfile() {
-    if (typeof config.workspaceDir !== 'string' || config.workspaceDir.trim() === '') return null
     try {
       const raw = await readFile(pidfilePath(), 'utf8')
       const parsed = JSON.parse(raw)
@@ -90,7 +99,7 @@ function createManager(config, logger) {
       running: h.ok,
       apiBase: config.apiBase,
       appBase: config.appBase,
-      workspaceDir: config.workspaceDir,
+      workspaceDir: workspaceDir(config),
       managedByPlugin,
       pid: managedByPlugin ? pf.pid : null,
       deepseekConfigured: h.ok ? Boolean(h.data?.deepseekConfigured) : null,
@@ -111,23 +120,33 @@ function createManager(config, logger) {
     }
     if (state.starting) return state.starting
     const dir = workspaceDir(config)
+    const bundledEntry = path.join(dir, 'server', 'index.js')
     const builtEntry = path.join(dir, 'dist-server', 'server', 'index.js')
     const tsxCli = path.join(dir, 'node_modules', 'tsx', 'dist', 'cli.mjs')
     const devEntry = path.join(dir, 'server', 'index.ts')
     let commandArgs
-    if (existsSync(builtEntry)) {
+    if (existsSync(bundledEntry)) {
+      commandArgs = [bundledEntry]
+    } else if (existsSync(builtEntry)) {
       commandArgs = [builtEntry]
     } else if (existsSync(tsxCli) && existsSync(devEntry)) {
       commandArgs = [tsxCli, 'server/index.ts']
     } else {
-      throw new Error(`工作区缺少可运行的服务入口：请在 ${dir} 执行 npm install 并 npm run server:build（或保留 server/index.ts 与 tsx 依赖）。`)
+      throw new Error(`Interchange 运行时不完整：${dir} 缺少服务入口。请重新安装包含 runtime/ 的 interchange-dsh 包，或提供包含构建产物的 workspaceDir。`)
     }
     state.starting = (async () => {
+      const localStateDir = stateDir(config)
+      await mkdir(localStateDir, { recursive: true })
+      const env = { ...process.env, DSH_HOME: resolveDshHome(config) }
+      if (!hasCustomWorkspace(config)) {
+        env.SQLITE_PATH ??= path.join(localStateDir, 'interchange.sqlite')
+        env.DOTENV_CONFIG_PATH ??= path.join(localStateDir, '.env')
+      }
       const child = spawn(process.execPath, commandArgs, {
         cwd: dir,
         stdio: 'ignore',
         windowsHide: true,
-        env: { ...process.env, DSH_HOME: resolveDshHome(config) },
+        env,
       })
       child.on('error', (error) => log(`服务进程启动失败: ${error.message}`))
       child.on('exit', () => { if (state.lastSpawned === child.pid) state.lastSpawned = null })

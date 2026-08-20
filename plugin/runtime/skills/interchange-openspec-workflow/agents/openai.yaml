@@ -1,0 +1,4 @@
+interface:
+  display_name: "Interchange OpenSpec Workflow"
+  short_description: "Create change context and delta specs"
+  default_prompt: "Use $interchange-openspec-workflow to prepare proposal, context, design, tasks, and delta spec drafts from a project change."
