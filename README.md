@@ -4,6 +4,16 @@
 
 一次输入可核实的事实，即可按不同角色的关注点与偏好生成可审阅、可编辑的针对性信息；经人工确认后通过 Webhook/钉钉发送，并把开发变更沉淀为类 OpenSpec 的长期规范。
 
+## 安装 DSH 插件
+
+已发布的插件包名为 `interchange-dsh`。安装到 DSH Web profile：
+
+```bash
+dsh plugin --profile web add interchange-dsh
+```
+
+重启 DSH 后，在设置页打开「Interchange」并启动本地服务。独立安装模式会把 SQLite 数据和可选 `.env` 保存到 `~/.dsh/interchange/`；如需调用 DeepSeek，在该目录的 `.env` 中设置 `DEEPSEEK_API_KEY`。更多配置见 [`plugin/README.md`](plugin/README.md)。
+
 ## 项目结构
 
 ```text
@@ -99,4 +109,4 @@ npm test
 
 ## 许可证
 
-本项目尚未声明许可证。公开发布前请补充（例如 MIT），并注意 `skills/`、`core/`、`scripts/` 内容源自 Interchange 项目的 `agent-skills-v2` 目录。
+本项目采用 [MIT License](LICENSE)。
